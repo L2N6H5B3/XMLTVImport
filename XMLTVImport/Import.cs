@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Configuration;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -14,7 +15,6 @@ using Microsoft.MediaCenter.Store;
 namespace XMLTVImport {
     class Import {
 
-        private static Dictionary<int, string> channelNameMap;
         private static string url;
         private static string xml;
         private static XmlSerializer serializer;
@@ -227,70 +227,6 @@ namespace XMLTVImport {
 
             #region Iterate XMLTV Channels ####################################
 
-            channelNameMap = new Dictionary<int, string> {
-                { 1, "10 HD" },
-                { 2, "ABC TV" },
-                { 3, "SBS ONE" },
-                { 7, "7 Adelaide" },
-                { 9, "Channel 9 Adelaide" },
-                { 10, "10" },
-                { 11, "10 Peach" },
-                { 12, "10 BOLD" },
-                { 13, "10 SHAKE" },
-                { 15, "10 HD" },
-                { 16, "TVSN" },
-                { 17, "SpreeTV" },
-                { 20, "ABCTV HD" },
-                { 21, "ABC TV" },
-                { 22, "ABCKids/TVPlus" },
-                { 23, "ABC ME" },
-                { 24, "ABC NEWS" },
-                { 25, "ABC ADELAIDE" },
-                { 26, "ABC RN" },
-                { 27, "ABC Classic" },
-                { 28, "triple j" },
-                { 29, "triple j Unearthed" },
-                { 30, "SBS ONE HD" },
-                { 31, "SBS VICELAND HD" },
-                { 32, "SBS World Movies" },
-                { 33, "SBS Food" },
-                { 34, "NITV" },
-                { 36, "SBS Arabic24" },
-                { 37, "SBS Radio 1" },
-                { 38, "SBS Radio 2" },
-                { 39, "SBS Chill" },
-                { 44, "44 Adelaide" },
-                { 70, "7HD Adelaide" },
-                { 71, "7 Adelaide" },
-                { 72, "7TWO Adelaide" },
-                { 73, "7mate Adelaide" },
-                { 74, "7mateHD Adelaide" },
-                { 75, "openshop" },
-                { 76, "7flix Adelaide" },
-                { 78, "RACING.COM" },
-                { 90, "9HD Adelaide" },
-                { 91, "Channel 9 Adelaide" },
-                { 92, "9Gem Adelaide" },
-                { 93, "9Go! Adelaide" },
-                { 94, "9Life Adelaide" },
-                { 95, "9GemHD Adelaide" },
-                { 96, "9Rush Adelaide" },
-                { 97, "Extra" },
-                { 99, "9Go! Adelaide" },
-                { 200, "Double J" },
-                { 201, "ABC Jazz" },
-                { 202, "ABC KIDS Listen" },
-                { 203, "ABC Country" },
-                { 204, "ABC NewsRadio" },
-                { 301, "SBS Radio 1" },
-                { 302, "SBS Radio 2" },
-                { 303, "SBS Radio 3" },
-                { 304, "SBS Arabic24" },
-                { 305, "SBS PopDesi" },
-                { 306, "SBS Chill" },
-                { 307, "SBS PopAsia" }
-            };
-
             // Iterate through XMLTV Channels
             foreach (XMLTVChannel xmltvChannel in result.Channel.OrderBy(xx => int.Parse(xx.Lcn))) {
 
@@ -317,14 +253,13 @@ namespace XMLTVImport {
                 // Create new Service if None Exists
                 if (service == null) {
                     service = new Service {
-                        Name = channelNameMap[int.Parse(xmltvChannel.Lcn)],
+                        Name = xmltvChannel.Displayname,
                         LogoImage = guideImage.Id,
                         CallSign = xmltvChannel.Lcn
                     };
                     // Add Service to List
                     baseMxf.With.Services.Add(service);
                 }
-
 
                 #endregion ####################################################
 
@@ -356,7 +291,8 @@ namespace XMLTVImport {
                         Number = int.Parse(xmltvChannel.Lcn),
                         Service = service.Id,
                         Id = xmltvChannel.Id,
-                        Lineup = lineup.Id
+                        Lineup = lineup.Id,
+                        MatchName = ConfigurationManager.AppSettings.Get(xmltvChannel.Lcn)
                     };
                     // Add Channel to List
                     baseMxf.With.Lineups.Lineup.First().Channels.Add(channel, lineup);
@@ -648,8 +584,6 @@ namespace XMLTVImport {
                         EpisodeNumber = episodeNo
                     };
 
-                    System.Diagnostics.Debug.WriteLine(string.Join(",", keywords.Select(xx => xx.Id)));
-
                     // If the Programme is a TV Show
                     if (isSeries) {
                         program.Series = seriesInfo.Id;
@@ -675,33 +609,28 @@ namespace XMLTVImport {
                 Channel channel = baseMxf.With.Lineups.Lineup.First().Channels.Channel.FirstOrDefault(xx => xx.Id == programme.Channel);
                 // Find ScheduleEntries from WMC BaseMXF
                 ScheduleEntries scheduleEntries = baseMxf.With.ScheduleEntries.FirstOrDefault(xx => xx.Service == channel.Service);
-                // Find ScheduleEntry from WMC BaseMXF
-                ScheduleEntry scheduleEntry = scheduleEntries.ScheduleEntry.FirstOrDefault(xx => xx.Program == program.Id);
-                // Create new ScheduleEntry if None Exists
-                if (scheduleEntry == null) {
-                    // Create ScheduleEntry
-                    scheduleEntry = new ScheduleEntry {
-                        Program = program.Id,
-                        IsHdtv = isHdtv,
-                        IsPremiere = isPremiere,
-                        IsFinale = isFinale,
-                        IsLive = isLive,
-                        IsLiveSports = isLiveSports,
-                        IsCC = isCC,
-                        IsSubtitled = isSubtitled,
-                        IsDelay = isDelay,
-                        IsTape = isTape,
-                        AudioFormat = audioFormat,
-                        Part = partNo,
-                        Parts = partCount,
-                        Duration = (endTime - startTime).TotalSeconds.ToString()
-                    };
-                    if (scheduleEntries.ScheduleEntry.Count == 0) {
-                        scheduleEntry.StartTime = startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss");
-                    }
-                    // Add ScheduleEntry to List
-                    scheduleEntries.Add(scheduleEntry);
+                // Create ScheduleEntry
+                ScheduleEntry scheduleEntry = new ScheduleEntry {
+                    Program = program.Id,
+                    IsHdtv = isHdtv,
+                    IsPremiere = isPremiere,
+                    IsFinale = isFinale,
+                    IsLive = isLive,
+                    IsLiveSports = isLiveSports,
+                    IsCC = isCC,
+                    IsSubtitled = isSubtitled,
+                    IsDelay = isDelay,
+                    IsTape = isTape,
+                    AudioFormat = audioFormat,
+                    Part = partNo,
+                    Parts = partCount,
+                    Duration = (endTime - startTime).TotalSeconds.ToString()
+                };
+                if (scheduleEntries.ScheduleEntry.Count == 0) {
+                    scheduleEntry.StartTime = startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss");
                 }
+                // Add ScheduleEntry to List
+                scheduleEntries.Add(scheduleEntry);
 
                 #endregion ####################################################
 
@@ -710,21 +639,47 @@ namespace XMLTVImport {
             #endregion ########################################################
 
 
-            #region Create XML  ###############################################
+            #region Create WMC MXF XML  #######################################
 
+            // Create XML Serializer
             XmlSerializer writer = new XmlSerializer(typeof(MXF));
+            // Add NameSpaces to XML
             XmlSerializerNamespaces xmlSerializerNamespaces = new XmlSerializerNamespaces();
             xmlSerializerNamespaces.Add("sql", "urn:schemas-microsoft-com:XML-sql");
             xmlSerializerNamespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-            var path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "//latest-guide.xml";
 
-            FileStream file = File.Create(path);
-            writer.Serialize(file, baseMxf, xmlSerializerNamespaces);
-            file.Close();
+            // Set the XML Output Path
+            var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "//latest-guide.xml";
 
+            // Write the data to XML
+            using (FileStream file = File.Create(path)) {
+                writer.Serialize(file, baseMxf, xmlSerializerNamespaces);
+                file.Close();
+            }
+
+            #endregion ########################################################
+
+
+            #region Import WMC MXF  ###########################################
+
+            // Retrieve the XML data
             FileStream mxf = File.OpenRead(path);
+            // Import the MXF Guide into WMC
             Microsoft.MediaCenter.Store.MXF.MxfImporter.Import(mxf, wmcStore);
 
+            #endregion ########################################################
+
+
+            #region Map EPG Data ##############################################
+
+            // Get list of MergedLineups
+            var mergedLineups = new Microsoft.MediaCenter.Guide.MergedLineups(wmcStore);
+
+            // Iterate through each Merged ineup
+            foreach (Microsoft.MediaCenter.Guide.MergedLineup mergedLineup in mergedLineups) {
+                // Merge the Lineup
+                mergedLineup.FullMerge();
+            }
 
             #endregion ########################################################
 

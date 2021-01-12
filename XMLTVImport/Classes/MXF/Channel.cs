@@ -18,7 +18,9 @@ namespace XMLTVImport.Classes.MXF {
 		public string Service { get; set; }
 		[XmlAttribute(AttributeName = "number")]
 		public int Number { get; set; }
-	}
+        [XmlAttribute(AttributeName = "matchName")]
+        public string MatchName { get; set; }
+    }
 
 	[XmlRoot(ElementName = "channels")]
 	public class Channels {
