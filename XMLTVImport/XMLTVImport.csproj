@@ -32,6 +32,18 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ehRecObj, Version=6.3.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Windows\ehome\ehRecObj.dll</HintPath>
+    </Reference>
+    <Reference Include="mcepg, Version=6.3.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Windows\ehome\mcepg.dll</HintPath>
+    </Reference>
+    <Reference Include="mcstore, Version=6.3.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Windows\ehome\mcstore.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -41,8 +53,26 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Classes\MXF\Affiliates.cs" />
+    <Compile Include="Classes\MXF\Keywords.cs" />
+    <Compile Include="Classes\MXF\KeywordGroups.cs" />
+    <Compile Include="Classes\MXF\Channel.cs" />
+    <Compile Include="Classes\MXF\GuideImages.cs" />
+    <Compile Include="Classes\MXF\Lineups.cs" />
+    <Compile Include="Classes\MXF\With.cs" />
+    <Compile Include="Classes\MXF\Services.cs" />
+    <Compile Include="Classes\MXF\Providers.cs" />
+    <Compile Include="Classes\MXF\ScheduleEntries.cs" />
+    <Compile Include="Classes\MXF\Programs.cs" />
+    <Compile Include="Classes\MXF\People.cs" />
+    <Compile Include="Classes\MXF\SeriesInfos.cs" />
+    <Compile Include="Classes\MXF\Seasons.cs" />
+    <Compile Include="Classes\MXF\MXF.cs" />
+    <Compile Include="Classes\XMLTV\Programme.cs" />
+    <Compile Include="Classes\XMLTV\XMLTVChannel.cs" />
     <Compile Include="Classes\XMLTV\TV.cs" />
-    <Compile Include="Program.cs" />
+    <Compile Include="ImportOld.cs" />
+    <Compile Include="Import.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
