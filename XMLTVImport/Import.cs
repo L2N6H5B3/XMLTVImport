@@ -22,6 +22,7 @@ namespace XMLTVImport {
         private static MXF baseMxf;
 
         static void Main(string[] args) {
+            
 
             #region Get WMC ObjectStore #######################################
 
@@ -42,7 +43,7 @@ namespace XMLTVImport {
             ObjectStore wmcStore = ObjectStore.Open("", Encoding.ASCII.GetString(bytes), clientId, true);
 
             #endregion ########################################################
-
+            if (false) { 
 
             #region Get WMC Guide Objects #####################################
 
@@ -255,7 +256,7 @@ namespace XMLTVImport {
                     service = new Service {
                         Name = xmltvChannel.Displayname,
                         LogoImage = guideImage.Id,
-                        CallSign = xmltvChannel.Lcn
+                        CallSign = ConfigurationManager.AppSettings.Get(xmltvChannel.Lcn)
                     };
                     // Add Service to List
                     baseMxf.With.Services.Add(service);
@@ -667,19 +668,64 @@ namespace XMLTVImport {
             // Import the MXF Guide into WMC
             Microsoft.MediaCenter.Store.MXF.MxfImporter.Import(mxf, wmcStore);
 
-            #endregion ########################################################
+                #endregion ########################################################
 
-
+            }
             #region Map EPG Data ##############################################
 
             // Get list of MergedLineups
             var mergedLineups = new Microsoft.MediaCenter.Guide.MergedLineups(wmcStore);
 
-            // Iterate through each Merged ineup
-            foreach (Microsoft.MediaCenter.Guide.MergedLineup mergedLineup in mergedLineups) {
-                // Merge the Lineup
-                mergedLineup.FullMerge();
+            //// Iterate through
+            //foreach (Microsoft.MediaCenter.Guide.Lineup lineup in new Microsoft.MediaCenter.Guide.Lineups(wmcStore)) {
+            //    System.Diagnostics.Debug.WriteLine(lineup.Name);
+
+            //}
+
+
+            //// Get list of MergedLineups
+            //var merge = new Microsoft.MediaCenter.Guide.MergedLineup();
+            //var mergeRule = new Microsoft.MediaCenter.Guide.LineupMergeRule();
+            //mergeRule.MergeType = Microsoft.MediaCenter.Guide.MergeType.WmisScanned;
+            //merge.LineupMergeRule = mergeRule;
+            //merge.Name = "Adelaide-XMLTV";
+            //merge.
+
+            //// Iterate through
+            //foreach (Microsoft.MediaCenter.Guide.LineupMergeRule rule in mergeRules) {
+            //    System.Diagnostics.Debug.WriteLine(rule.);
+
+            //}
+
+
+            var allChannels = new Microsoft.MediaCenter.Guide.Channels(wmcStore).Where(xx => !xx.CallSign.Contains("Deleted"));
+            int count = 1;
+            // Iterate through
+            foreach (Microsoft.MediaCenter.Guide.Channel c in allChannels) {
+                System.Diagnostics.Debug.WriteLine("-----");
+                System.Diagnostics.Debug.WriteLine($"Channel {count} of {allChannels.Count()}");
+                System.Diagnostics.Debug.WriteLine($"CallSign: {c.CallSign}");
+                System.Diagnostics.Debug.WriteLine($"CallSignHash: {c.CallSignHash}");
+                System.Diagnostics.Debug.WriteLine($"Number: {c.ChannelNumber}");
+                System.Diagnostics.Debug.WriteLine($"NumberPriority: {c.ChannelNumberPriority}");
+                System.Diagnostics.Debug.WriteLine($"ChannelType: {c.ChannelType.ToString()}");
+                System.Diagnostics.Debug.WriteLine($"TuningInfos: {c.TuningInfos.ToString()}");
+                System.Diagnostics.Debug.WriteLine($"NumberPriority: {c.ChannelNumberPriority}");
+                System.Diagnostics.Debug.WriteLine($"UID: {c.UniqueId}");
+                System.Diagnostics.Debug.WriteLine($"Visibility: {c.Visibility}");
+
+                count++;
             }
+
+            //// Iterate through each Merged ineup
+            //foreach (Microsoft.MediaCenter.Guide.MergedLineup mergedLineup in mergedLineups) {
+
+
+            //    System.Diagnostics.Debug.WriteLine("Here");
+            //    //mergedLineup.ClearChannelCache();
+            //    // Merge the Lineup
+            //    //mergedLineup.FullMerge();
+            //}
 
             #endregion ########################################################
 
