@@ -13,7 +13,7 @@ namespace XMLTVImport.Classes.MXF {
 		[XmlAttribute(AttributeName = "startTime")]
 		public string StartTime { get; set; }
 		[XmlAttribute(AttributeName = "duration")]
-		public string Duration { get; set; }
+		public int Duration { get; set; }
 		[XmlAttribute(AttributeName = "isCC")]
 		public bool IsCC { get; set; }
 		[XmlAttribute(AttributeName = "isHdtv")]

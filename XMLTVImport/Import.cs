@@ -23,7 +23,6 @@ namespace XMLTVImport {
 
         static void Main(string[] args) {
             
-
             #region Get WMC ObjectStore #######################################
 
             string s = "Unable upgrade recording state.";
@@ -43,7 +42,7 @@ namespace XMLTVImport {
             ObjectStore wmcStore = ObjectStore.Open("", Encoding.ASCII.GetString(bytes), clientId, true);
 
             #endregion ########################################################
-            if (false) { 
+
 
             #region Get WMC Guide Objects #####################################
 
@@ -238,7 +237,7 @@ namespace XMLTVImport {
                 // Create new Guide Image if None Exists
                 if (guideImage == null) {
                     guideImage = new GuideImage {
-                        ImageUrl = xmltvChannel.Icon.Src
+                        ImageUrl = ConfigurationManager.AppSettings.Get($"logo-{xmltvChannel.Lcn}")
                     };
                     // Add GuideImage to List
                     baseMxf.With.GuideImages.Add(guideImage);
@@ -256,7 +255,7 @@ namespace XMLTVImport {
                     service = new Service {
                         Name = xmltvChannel.Displayname,
                         LogoImage = guideImage.Id,
-                        CallSign = ConfigurationManager.AppSettings.Get(xmltvChannel.Lcn)
+                        CallSign = ConfigurationManager.AppSettings.Get($"callsign-{xmltvChannel.Lcn}")
                     };
                     // Add Service to List
                     baseMxf.With.Services.Add(service);
@@ -293,7 +292,7 @@ namespace XMLTVImport {
                         Service = service.Id,
                         Id = xmltvChannel.Id,
                         Lineup = lineup.Id,
-                        MatchName = ConfigurationManager.AppSettings.Get(xmltvChannel.Lcn)
+                        MatchName = ConfigurationManager.AppSettings.Get($"callsign-{xmltvChannel.Lcn}")
                     };
                     // Add Channel to List
                     baseMxf.With.Lineups.Lineup.First().Channels.Add(channel, lineup);
@@ -625,7 +624,7 @@ namespace XMLTVImport {
                     AudioFormat = audioFormat,
                     Part = partNo,
                     Parts = partCount,
-                    Duration = (endTime - startTime).TotalSeconds.ToString()
+                    Duration = (int)(endTime - startTime).TotalSeconds
                 };
                 if (scheduleEntries.ScheduleEntry.Count == 0) {
                     scheduleEntry.StartTime = startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss");
@@ -635,6 +634,38 @@ namespace XMLTVImport {
 
                 #endregion ####################################################
 
+            }
+
+            #endregion ########################################################
+
+
+            #region Iterate MXF ScheduleEntries ###############################
+
+            // Iterate through all created ScheduleEntries
+            foreach (ScheduleEntries scheduleEntries in baseMxf.With.ScheduleEntries) {
+                // If this ScheduleEntries Object has no ScheduleEntry Objects
+                if (scheduleEntries.ScheduleEntry.Count() == 0) {  
+                    // Get Service
+                    Service service = baseMxf.With.Services.Service.FirstOrDefault(xx => xx.Id == scheduleEntries.Service);
+                    // Create new Filler Program
+                    Program program = new Program {
+                        Title = service.Name,
+                        Description = "No EPG Data Available.",
+                        ShortDescription = "No EPG Data Available.",
+                        GuideImage = service.LogoImage,
+                        Year = DateTime.Now.Year.ToString()
+                    };
+                    // Add new Filler Program to List
+                    baseMxf.With.Programs.Add(program);
+                    // Create new Filler ScheduleEntry
+                    ScheduleEntry scheduleEntry = new ScheduleEntry() {
+                       Program = program.Id,
+                       StartTime = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss"),
+                       Duration = 86400
+                    };
+                    // Add new Filler ScheduleEntry to List
+                    scheduleEntries.Add(scheduleEntry);
+                }
             }
 
             #endregion ########################################################
@@ -668,13 +699,13 @@ namespace XMLTVImport {
             // Import the MXF Guide into WMC
             Microsoft.MediaCenter.Store.MXF.MxfImporter.Import(mxf, wmcStore);
 
-                #endregion ########################################################
+            #endregion ########################################################
 
-            }
+
             #region Map EPG Data ##############################################
 
             // Get list of MergedLineups
-            var mergedLineups = new Microsoft.MediaCenter.Guide.MergedLineups(wmcStore);
+            //var mergedLineups = new Microsoft.MediaCenter.Guide.MergedLineups(wmcStore);
 
             //// Iterate through
             //foreach (Microsoft.MediaCenter.Guide.Lineup lineup in new Microsoft.MediaCenter.Guide.Lineups(wmcStore)) {
@@ -683,12 +714,12 @@ namespace XMLTVImport {
             //}
 
 
-            //// Get list of MergedLineups
+            // Get list of MergedLineups
             //var merge = new Microsoft.MediaCenter.Guide.MergedLineup();
             //var mergeRule = new Microsoft.MediaCenter.Guide.LineupMergeRule();
             //mergeRule.MergeType = Microsoft.MediaCenter.Guide.MergeType.WmisScanned;
             //merge.LineupMergeRule = mergeRule;
-            //merge.Name = "Adelaide-XMLTV";
+            //merge.Name = "Adelaide-XMLTV+(Scanned (Digital Antenna (DVB-T)))";
             //merge.
 
             //// Iterate through
@@ -698,30 +729,30 @@ namespace XMLTVImport {
             //}
 
 
-            var allChannels = new Microsoft.MediaCenter.Guide.Channels(wmcStore).Where(xx => !xx.CallSign.Contains("Deleted"));
-            int count = 1;
-            // Iterate through
-            foreach (Microsoft.MediaCenter.Guide.Channel c in allChannels) {
-                System.Diagnostics.Debug.WriteLine("-----");
-                System.Diagnostics.Debug.WriteLine($"Channel {count} of {allChannels.Count()}");
-                System.Diagnostics.Debug.WriteLine($"CallSign: {c.CallSign}");
-                System.Diagnostics.Debug.WriteLine($"CallSignHash: {c.CallSignHash}");
-                System.Diagnostics.Debug.WriteLine($"Number: {c.ChannelNumber}");
-                System.Diagnostics.Debug.WriteLine($"NumberPriority: {c.ChannelNumberPriority}");
-                System.Diagnostics.Debug.WriteLine($"ChannelType: {c.ChannelType.ToString()}");
-                System.Diagnostics.Debug.WriteLine($"TuningInfos: {c.TuningInfos.ToString()}");
-                System.Diagnostics.Debug.WriteLine($"NumberPriority: {c.ChannelNumberPriority}");
-                System.Diagnostics.Debug.WriteLine($"UID: {c.UniqueId}");
-                System.Diagnostics.Debug.WriteLine($"Visibility: {c.Visibility}");
+            //var allChannels = new Microsoft.MediaCenter.Guide.Channels(wmcStore).Where(xx => !xx.CallSign.Contains("Deleted"));
+            //int count = 1;
+            //// Iterate through
+            //foreach (Microsoft.MediaCenter.Guide.Channel c in allChannels) {
+            //    System.Diagnostics.Debug.WriteLine("-----");
+            //    System.Diagnostics.Debug.WriteLine($"Channel {count} of {allChannels.Count()}");
+            //    System.Diagnostics.Debug.WriteLine($"CallSign: {c.CallSign}");
+            //    System.Diagnostics.Debug.WriteLine($"CallSignHash: {c.CallSignHash}");
+            //    System.Diagnostics.Debug.WriteLine($"Number: {c.ChannelNumber}");
+            //    System.Diagnostics.Debug.WriteLine($"NumberPriority: {c.ChannelNumberPriority}");
+            //    System.Diagnostics.Debug.WriteLine($"ChannelType: {c.ChannelType.ToString()}");
+            //    System.Diagnostics.Debug.WriteLine($"TuningInfos: {c.TuningInfos.ToString()}");
+            //    System.Diagnostics.Debug.WriteLine($"NumberPriority: {c.ChannelNumberPriority}");
+            //    System.Diagnostics.Debug.WriteLine($"UID: {c.UniqueId}");
+            //    System.Diagnostics.Debug.WriteLine($"Visibility: {c.Visibility}");
 
-                count++;
-            }
+            //    count++;
+            //}
 
             //// Iterate through each Merged ineup
             //foreach (Microsoft.MediaCenter.Guide.MergedLineup mergedLineup in mergedLineups) {
 
 
-            //    System.Diagnostics.Debug.WriteLine("Here");
+            //    //System.Diagnostics.Debug.WriteLine("Here");
             //    //mergedLineup.ClearChannelCache();
             //    // Merge the Lineup
             //    //mergedLineup.FullMerge();
