@@ -1,2 +1,2 @@
 # XMLTVImport
- Download and Import XMLTV directly into Windows Media Center
+ Download and Import XMLTV files from xmltv.net directly into Windows Media Center
