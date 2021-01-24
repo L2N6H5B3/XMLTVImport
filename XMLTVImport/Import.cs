@@ -11,6 +11,7 @@ using System.Xml.Serialization;
 using XMLTVImport.Classes.XMLTV;
 using XMLTVImport.Classes.MXF;
 using Microsoft.MediaCenter.Store;
+using System.Diagnostics;
 
 namespace XMLTVImport {
     class Import {
@@ -20,26 +21,29 @@ namespace XMLTVImport {
         private static XmlSerializer serializer;
         private static TV result;
         private static MXF baseMxf;
+        private static string workingDir;
 
         static void Main(string[] args) {
-            
+
+            workingDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
             #region Get WMC ObjectStore #######################################
 
-            string s = "Unable upgrade recording state.";
-            byte[] bytes = Convert.FromBase64String("FAAODBUITwADRicSARc=");
+            //string s = "Unable upgrade recording state.";
+            //byte[] bytes = Convert.FromBase64String("FAAODBUITwADRicSARc=");
 
-            byte[] buffer2 = Encoding.ASCII.GetBytes(s);
-            for (int i = 0; i != bytes.Length; i++) {
-                bytes[i] = (byte)(bytes[i] ^ buffer2[i]);
-            }
+            //byte[] buffer2 = Encoding.ASCII.GetBytes(s);
+            //for (int i = 0; i != bytes.Length; i++) {
+            //    bytes[i] = (byte)(bytes[i] ^ buffer2[i]);
+            //}
 
-            string clientId = Microsoft.MediaCenter.Store.ObjectStore.GetClientId(true);
-            SHA256Managed managed = new SHA256Managed();
-            byte[] buffer = Encoding.Unicode.GetBytes(clientId);
-            clientId = Convert.ToBase64String(managed.ComputeHash(buffer));
+            //string clientId = Microsoft.MediaCenter.Store.ObjectStore.GetClientId(true);
+            //SHA256Managed managed = new SHA256Managed();
+            //byte[] buffer = Encoding.Unicode.GetBytes(clientId);
+            //clientId = Convert.ToBase64String(managed.ComputeHash(buffer));
 
-            // Get WMC ObjectStore
-            ObjectStore wmcStore = ObjectStore.Open("", Encoding.ASCII.GetString(bytes), clientId, true);
+            //// Get WMC ObjectStore
+            //ObjectStore wmcStore = ObjectStore.Open("", Encoding.ASCII.GetString(bytes), clientId, true);
 
             #endregion ########################################################
 
@@ -232,12 +236,20 @@ namespace XMLTVImport {
 
                 #region Create WMC GuideImages ################################
 
+                string guideImageDir = Path.Combine(workingDir, "WMC-GuideImages");
+                Directory.CreateDirectory(guideImageDir);
+
                 // Find Guide Image from WMC BaseMXF
                 GuideImage guideImage = baseMxf.With.GuideImages.GuideImage.FirstOrDefault(xx => xx.ImageUrl == xmltvChannel.Icon.Src);
                 // Create new Guide Image if None Exists
                 if (guideImage == null) {
+                    using (var client = new WebClient()) {
+                        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                        string uri = ConfigurationManager.AppSettings.Get($"logo-{xmltvChannel.Lcn}");
+                        client.DownloadFile(uri, Path.Combine(guideImageDir, $"{xmltvChannel.Lcn}.png"));
+                    }
                     guideImage = new GuideImage {
-                        ImageUrl = ConfigurationManager.AppSettings.Get($"logo-{xmltvChannel.Lcn}")
+                        ImageUrl = Path.Combine(guideImageDir, $"{xmltvChannel.Lcn}.png")
                     };
                     // Add GuideImage to List
                     baseMxf.With.GuideImages.Add(guideImage);
@@ -308,7 +320,7 @@ namespace XMLTVImport {
             #region Iterate XMLTV Programmes ##################################
 
             // Iterate through XMLTV Programmes
-            foreach (Programme programme in result.Programme) {
+            foreach (Programme programme in result.Programme.OrderBy(xx => int.Parse(result.Channel.First(xy => xy.Id == xx.Channel).Lcn)).ThenBy(xx => DateTime.ParseExact(xx.Start, "yyyyMMddHHmmss zzz", new CultureInfo("en-AU")))) {
 
                 #region Get Programme Details #################################
 
@@ -560,7 +572,13 @@ namespace XMLTVImport {
                 #region Create WMC Program ####################################
 
                 // Find Program from WMC BaseMXF
-                Program program = baseMxf.With.Programs.Program.FirstOrDefault(xx => xx.Title == programme.Title && xx.EpisodeTitle == programme.Subtitle && xx.Description == programme.Desc);
+                Program program = baseMxf.With.Programs.Program.FirstOrDefault(xx => 
+                xx.Title == programme.Title && 
+                xx.EpisodeTitle == programme.Subtitle && 
+                xx.Description == programme.Desc &&
+                xx.SeasonNumber == seasonNo &&
+                xx.EpisodeNumber == episodeNo
+                );
                 // Create new Program if None Exists
                 if (program == null) {
                     // Create Program
@@ -609,31 +627,80 @@ namespace XMLTVImport {
                 Channel channel = baseMxf.With.Lineups.Lineup.First().Channels.Channel.FirstOrDefault(xx => xx.Id == programme.Channel);
                 // Find ScheduleEntries from WMC BaseMXF
                 ScheduleEntries scheduleEntries = baseMxf.With.ScheduleEntries.FirstOrDefault(xx => xx.Service == channel.Service);
-                // Create ScheduleEntry
-                ScheduleEntry scheduleEntry = new ScheduleEntry {
-                    Program = program.Id,
-                    IsHdtv = isHdtv,
-                    IsPremiere = isPremiere,
-                    IsFinale = isFinale,
-                    IsLive = isLive,
-                    IsLiveSports = isLiveSports,
-                    IsCC = isCC,
-                    IsSubtitled = isSubtitled,
-                    IsDelay = isDelay,
-                    IsTape = isTape,
-                    AudioFormat = audioFormat,
-                    Part = partNo,
-                    Parts = partCount,
-                    Duration = (int)(endTime - startTime).TotalSeconds
-                };
-                if (scheduleEntries.ScheduleEntry.Count == 0) {
-                    scheduleEntry.StartTime = startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss");
+                // Find Existing ScheduleEntry
+                ScheduleEntry scheduleEntry = scheduleEntries.ScheduleEntry.FirstOrDefault(xx => xx.StartDateTime == startTime);
+                // Check if ScheduleEntry already exists
+                if (scheduleEntry == null) {
+                    // Create ScheduleEntry
+                    scheduleEntry = new ScheduleEntry {
+                        Program = program.Id,
+                        IsHdtv = isHdtv,
+                        IsPremiere = isPremiere,
+                        IsFinale = isFinale,
+                        IsLive = isLive,
+                        IsLiveSports = isLiveSports,
+                        IsCC = isCC,
+                        IsSubtitled = isSubtitled,
+                        IsDelay = isDelay,
+                        IsTape = isTape,
+                        AudioFormat = audioFormat,
+                        Part = partNo,
+                        Parts = partCount,
+                        Duration = (int)(endTime - startTime).TotalSeconds,
+                        StartDateTime = startTime,
+                        EndDateTime = endTime
+                    };
+                    // If this is the First ScheduleEntry
+                    if (scheduleEntries.ScheduleEntry.Count == 0) {
+                        // Add the StartTime
+                        scheduleEntry.StartTime = startTime.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss");
+                    }
+                    // If this is a Subsequent ScheduleEntry
+                    else {
+                        // Get the Last ScheduleEntry
+                        ScheduleEntry lastEntry = scheduleEntries.ScheduleEntry.Last();
+                        // If the Last ScheduleEntry EndTime does not match the New ScheduleEntry StartTime
+                        if (lastEntry.EndDateTime != startTime) {
+                            // If the New ScheduleEntry is set to Start before the Last ScheduleEntry Ends
+                            if (lastEntry.EndDateTime > startTime) {
+                                // Set the Last ScheduleEntry End Time to the Start Time of the New ScheduleEntry
+                                lastEntry.EndDateTime = startTime;
+                                // Set the Last ScheduleEntry Duration
+                                lastEntry.Duration = (int)(lastEntry.EndDateTime - lastEntry.StartDateTime).TotalSeconds;
+                            } else {
+                                // Get Service
+                                Service service = baseMxf.With.Services.Service.FirstOrDefault(xx => xx.Id == scheduleEntries.Service);
+                                // Find Filler Program from WMC BaseMXF
+                                Program fillerProgram = baseMxf.With.Programs.Program.FirstOrDefault(xx => xx.Title == service.Name);
+                                // Check if Filler Program Exists
+                                if (fillerProgram == null) {
+                                    // Create new Filler Program
+                                    fillerProgram = new Program {
+                                        Title = service.Name,
+                                        Description = "No EPG Data Available.",
+                                        ShortDescription = "No EPG Data Available.",
+                                        GuideImage = service.LogoImage,
+                                        Year = DateTime.Now.Year.ToString()
+                                    };
+                                    // Add new Filler Program to List
+                                    baseMxf.With.Programs.Add(fillerProgram);
+                                }
+                                // Create new Filler ScheduleEntry
+                                ScheduleEntry fillerEntry = new ScheduleEntry() {
+                                    Program = fillerProgram.Id,
+                                    Duration = (int)(startTime - lastEntry.EndDateTime).TotalSeconds,
+                                    EndDateTime = startTime
+                                };
+                                // Add new Filler ScheduleEntry to List
+                                scheduleEntries.Add(fillerEntry);
+                            }
+                        }
+                    }
+                    // Add ScheduleEntry to List
+                    scheduleEntries.Add(scheduleEntry);
                 }
-                // Add ScheduleEntry to List
-                scheduleEntries.Add(scheduleEntry);
 
                 #endregion ####################################################
-
             }
 
             #endregion ########################################################
@@ -641,32 +708,32 @@ namespace XMLTVImport {
 
             #region Iterate MXF ScheduleEntries ###############################
 
-            // Iterate through all created ScheduleEntries
-            foreach (ScheduleEntries scheduleEntries in baseMxf.With.ScheduleEntries) {
-                // If this ScheduleEntries Object has no ScheduleEntry Objects
-                if (scheduleEntries.ScheduleEntry.Count() == 0) {  
-                    // Get Service
-                    Service service = baseMxf.With.Services.Service.FirstOrDefault(xx => xx.Id == scheduleEntries.Service);
-                    // Create new Filler Program
-                    Program program = new Program {
-                        Title = service.Name,
-                        Description = "No EPG Data Available.",
-                        ShortDescription = "No EPG Data Available.",
-                        GuideImage = service.LogoImage,
-                        Year = DateTime.Now.Year.ToString()
-                    };
-                    // Add new Filler Program to List
-                    baseMxf.With.Programs.Add(program);
-                    // Create new Filler ScheduleEntry
-                    ScheduleEntry scheduleEntry = new ScheduleEntry() {
-                       Program = program.Id,
-                       StartTime = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss"),
-                       Duration = 86400
-                    };
-                    // Add new Filler ScheduleEntry to List
-                    scheduleEntries.Add(scheduleEntry);
-                }
-            }
+            //// Iterate through all created ScheduleEntries
+            //foreach (ScheduleEntries scheduleEntries in baseMxf.With.ScheduleEntries) {
+            //    // If this ScheduleEntries Object has no ScheduleEntry Objects
+            //    if (scheduleEntries.ScheduleEntry.Count() == 0) {  
+            //        // Get Service
+            //        Service service = baseMxf.With.Services.Service.FirstOrDefault(xx => xx.Id == scheduleEntries.Service);
+            //        // Create new Filler Program
+            //        Program program = new Program {
+            //            Title = service.Name,
+            //            Description = "No EPG Data Available.",
+            //            ShortDescription = "No EPG Data Available.",
+            //            GuideImage = service.LogoImage,
+            //            Year = DateTime.Now.Year.ToString()
+            //        };
+            //        // Add new Filler Program to List
+            //        baseMxf.With.Programs.Add(program);
+            //        // Create new Filler ScheduleEntry
+            //        ScheduleEntry scheduleEntry = new ScheduleEntry() {
+            //           Program = program.Id,
+            //           StartTime = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss"),
+            //           Duration = 86400
+            //        };
+            //        // Add new Filler ScheduleEntry to List
+            //        scheduleEntries.Add(scheduleEntry);
+            //    }
+            //}
 
             #endregion ########################################################
 
@@ -681,7 +748,7 @@ namespace XMLTVImport {
             xmlSerializerNamespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
 
             // Set the XML Output Path
-            var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "//latest-guide.xml";
+            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "latest-guide.xml");
 
             // Write the data to XML
             using (FileStream file = File.Create(path)) {
@@ -694,10 +761,13 @@ namespace XMLTVImport {
 
             #region Import WMC MXF  ###########################################
 
-            // Retrieve the XML data
-            FileStream mxf = File.OpenRead(path);
             // Import the MXF Guide into WMC
-            Microsoft.MediaCenter.Store.MXF.MxfImporter.Import(mxf, wmcStore);
+            Process.Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "ehome", "loadmxf.exe"), $"-i \"{path}\"");
+
+            //// Retrieve the XML data
+            //FileStream mxf = File.OpenRead(path);
+            //// Import the MXF Guide into WMC
+            //Microsoft.MediaCenter.Store.MXF.MxfImporter.Import(mxf, wmcStore);
 
             #endregion ########################################################
 

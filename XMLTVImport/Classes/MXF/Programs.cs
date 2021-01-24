@@ -64,9 +64,15 @@ namespace XMLTVImport.Classes.MXF {
 		public ProducerRole ProducerRole { get; set; }
 		[XmlElement(ElementName = "WriterRole")]
 		public List<WriterRole> WriterRole { get; set; }
-	}
+        [XmlIgnore]
+        public DateTime StartTime { get; set; }
+        [XmlIgnore]
+        public DateTime EndTime { get; set; }
+        [XmlIgnore]
+        public Channel Channel { get; set; }
+    }
 
-	[XmlRoot(ElementName = "ActorRole")]
+    [XmlRoot(ElementName = "ActorRole")]
 	public class ActorRole {
 		[XmlAttribute(AttributeName = "person")]
 		public string Person { get; set; }
