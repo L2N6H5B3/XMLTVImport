@@ -82,13 +82,15 @@ namespace XMLTVImport {
             #region Get XMLTV Data ############################################
 
             // Set XMLTV XML Location
-            url = "http://xmltv.net/xml_files/Adelaide.xml";
+            url = ConfigurationManager.AppSettings.Get("xmltv-uri");
             // Initialise XML Serializer
             serializer = new XmlSerializer(typeof(TV));
 
             // Use WebClient to Download XMLTV XML
             using (WebClient client = new WebClient()) {
+                // Set XML Encoding Type
                 client.Encoding = Encoding.UTF8;
+                // Download XMLTV File
                 xml = client.DownloadString(url);
             }
 
@@ -306,9 +308,9 @@ namespace XMLTVImport {
 
             // Create Lineup for WMC BaseMXF
             Lineup lineup  = new Lineup {
-                Name = "Adelaide, Australia",
+                Name = ConfigurationManager.AppSettings.Get("xmltv-location"),
                 PrimaryProvider = "!MCLineup!MainLineup",
-                ShortName = "Adelaide",
+                ShortName = ConfigurationManager.AppSettings.Get("xmltv-name"),
                 Channels = new Channels()
             };
             // Add Lineup to List
