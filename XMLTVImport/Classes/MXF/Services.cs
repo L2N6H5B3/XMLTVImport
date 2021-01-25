@@ -31,11 +31,20 @@ namespace XMLTVImport.Classes.MXF {
 			Service = new List<Service>();
 		}
 
-		public void Add(Service service) {
+		public void AddNew(Service service, int uid) {
+			// Set Service UID
+			service.Uid = $"!Service!{uid}";
 			// Set Service Current Count
 			int currentCount = Service.Count + 1;
-			// Set Service UID
-			service.Uid = $"!Service!{currentCount}";
+			// Set Service ID
+			service.Id = $"s{currentCount}";
+			// Add Service to List
+			Service.Add(service);
+		}
+
+		public void AddExisting(Service service) {
+			// Set Service Current Count
+			int currentCount = Service.Count + 1;
 			// Set Service ID
 			service.Id = $"s{currentCount}";
 			// Add Service to List

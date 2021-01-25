@@ -12,6 +12,8 @@ namespace XMLTVImport.Classes.MXF {
 		public string Id { get; set; }
 		[XmlAttribute(AttributeName = "imageUrl")]
 		public string ImageUrl { get; set; }
+		[XmlIgnore]
+		public string ChannelNo { get; set; }
 	}
 
 	[XmlRoot(ElementName = "GuideImages")]

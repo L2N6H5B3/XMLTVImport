@@ -36,6 +36,12 @@ namespace XMLTVImport.Classes.MXF {
 		public string Keywords { get; set; }
 		[XmlAttribute(AttributeName = "series")]
 		public string Series { get; set; }
+		[XmlIgnore]
+		public string SeriesUid { get; set; }
+		[XmlAttribute(AttributeName = "season")]
+		public string Season { get; set; }
+		[XmlIgnore]
+		public string SeasonUid { get; set; }
 		[XmlAttribute(AttributeName = "isSeries")]
 		public bool IsSeries { get; set; }
 		[XmlAttribute(AttributeName = "isMovie")]
@@ -121,11 +127,20 @@ namespace XMLTVImport.Classes.MXF {
 			Program = new List<Program>();
 		}
 
-		public void Add(Program program) {
+		public void AddNew(Program program, int uid) {
+			// Set Program UID
+			program.Uid = $"!Program!{uid}";
 			// Set Program Current Count
 			int currentCount = Program.Count + 1;
-			// Set Program UID
-			program.Uid = $"!Program!{currentCount}";
+			// Set Program ID
+			program.Id = $"{currentCount}";
+			// Add Program to List
+			Program.Add(program);
+		}
+
+		public void AddExisting(Program program) {
+			// Set Program Current Count
+			int currentCount = Program.Count + 1;
 			// Set Program ID
 			program.Id = currentCount.ToString();
 			// Add Program to List

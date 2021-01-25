@@ -37,11 +37,20 @@ namespace XMLTVImport.Classes.MXF {
 			SeriesInfo = new List<SeriesInfo>();
 		}
 
-		public void Add(SeriesInfo seriesInfo) {
+		public void AddNew(SeriesInfo seriesInfo, int uid) {
+			// Set SeriesInfo UID
+			seriesInfo.Uid = $"!Series!{uid}";
 			// Set SeriesInfo Current Count
 			int currentCount = SeriesInfo.Count + 1;
-			// Set SeriesInfo UID
-			seriesInfo.Uid = $"!Series!{currentCount}";
+			// Set SeriesInfo ID
+			seriesInfo.Id = $"si{currentCount}";
+			// Add SeriesInfo to List
+			SeriesInfo.Add(seriesInfo);
+		}
+
+		public void AddExisting(SeriesInfo seriesInfo) {
+			// Set SeriesInfo Current Count
+			int currentCount = SeriesInfo.Count + 1;
 			// Set SeriesInfo ID
 			seriesInfo.Id = $"si{currentCount}";
 			// Add SeriesInfo to List

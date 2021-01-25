@@ -14,8 +14,12 @@ namespace XMLTVImport.Classes.MXF {
 		public string Uid { get; set; }
 		[XmlAttribute(AttributeName = "lineup")]
 		public string Lineup { get; set; }
+		[XmlIgnore]
+		public string LineupUid { get; set; }
 		[XmlAttribute(AttributeName = "service")]
 		public string Service { get; set; }
+		[XmlIgnore]
+		public string ServiceUid { get; set; }
 		[XmlAttribute(AttributeName = "number")]
 		public int Number { get; set; }
         [XmlAttribute(AttributeName = "matchName")]

@@ -5,12 +5,10 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Serialization;
 using XMLTVImport.Classes.XMLTV;
 using XMLTVImport.Classes.MXF;
-using Microsoft.MediaCenter.Store;
 using System.Diagnostics;
 
 namespace XMLTVImport {
@@ -19,13 +17,25 @@ namespace XMLTVImport {
         private static string url;
         private static string xml;
         private static XmlSerializer serializer;
-        private static TV result;
+        private static TV xmltv;
+        private static Classes.State.State state;
         private static MXF baseMxf;
         private static string workingDir;
+        private static string mxfPath;
+        private static string statePath;
 
         static void Main(string[] args) {
 
-            workingDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            #region Set Variables #############################################
+
+            // Set Working Directory
+            workingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Windows Media Center", "XMLTV");
+            // Set XML Paths
+            mxfPath = Path.Combine(workingDir, "latest-guide.xml");
+            statePath = Path.Combine(workingDir, "current-state.xml");
+
+            #endregion ########################################################
+
 
             #region Get WMC ObjectStore #######################################
 
@@ -50,7 +60,7 @@ namespace XMLTVImport {
 
             #region Get WMC Guide Objects #####################################
 
-            baseMxf                         = new MXF();
+            baseMxf = new MXF();
             baseMxf.Assembly                = new List<Assembly>();
             baseMxf.Providers               = new Classes.MXF.Providers();
             baseMxf.With                    = new With();
@@ -84,9 +94,34 @@ namespace XMLTVImport {
 
             // Use TextReader to Create Objects from XML
             using (TextReader reader = new StringReader(xml)) {
-                result = (TV)serializer.Deserialize(reader);
+                // Deserialise XML
+                xmltv = (TV)serializer.Deserialize(reader);
             }
 
+            #endregion ########################################################
+
+
+            #region Get State #################################################
+
+            if (File.Exists(statePath)) {
+                // Use StreamReader to Create Objects from XML
+                using (StreamReader reader = new StreamReader(statePath)) {
+                    // Initialise XML Serializer
+                    serializer = new XmlSerializer(typeof(Classes.State.State));
+                    // Deserialise XML
+                    state = (Classes.State.State)serializer.Deserialize(reader);
+                }
+            } else {
+                // Create new State Object
+                state = new Classes.State.State { 
+                    KeywordGroups = new Classes.State.KeywordGroups(),
+                    SeriesInfos = new Classes.State.SeriesInfos(),
+                    Seasons = new Classes.State.Seasons(),
+                    Programs = new Classes.State.Programs(),
+                    Services = new Classes.State.Services()
+                };
+            }
+                
             #endregion ########################################################
 
 
@@ -96,31 +131,84 @@ namespace XMLTVImport {
             Keyword allKeyword = new Keyword {
                 Word = "All"
             };
+            // Add Keyword to List
+            baseMxf.With.Keywords.Add(allKeyword);
+
             // Create Movies Top-Level Keyword
             Keyword moviesKeyword = new Keyword {
                 Word = "Movies"
             };
+            // Add Keyword to List
+            baseMxf.With.Keywords.Add(moviesKeyword);
+
             // Create TV Shows Top-Level Keyword
             Keyword tvShowsKeyword = new Keyword {
                 Word = "TV Shows"
             };
-
-            baseMxf.With.Keywords.Add(allKeyword);
-            baseMxf.With.Keywords.Add(moviesKeyword);
+            // Add Keyword to List
             baseMxf.With.Keywords.Add(tvShowsKeyword);
 
-            // Create Movies KeywordGroup
-            KeywordGroup moviesKeywordGroup = new KeywordGroup {
-                GroupName = moviesKeyword.Id
-            };
-            moviesKeywordGroup.Add(allKeyword);
-            baseMxf.With.KeywordGroups.Add(moviesKeywordGroup);
-            // Create TV Shows KeywordGroup
-            KeywordGroup tvShowsKeywordGroup = new KeywordGroup {
-                GroupName = tvShowsKeyword.Id
-            };
-            tvShowsKeywordGroup.Add(allKeyword);
-            baseMxf.With.KeywordGroups.Add(tvShowsKeywordGroup);
+            // Initialise TV Shows KeywordGroup Variable
+            KeywordGroup moviesKeywordGroup;
+
+            // Find KeywordGroup from State
+            Classes.State.KeywordGroup stateMoviesKeywordGroup = state.KeywordGroups.KeywordGroup.FirstOrDefault(xx => xx.Name == moviesKeyword.Word);
+            // Check if the State KeywordGroup Exists
+            if (stateMoviesKeywordGroup != null) {
+                // Create Movies KeywordGroup
+                moviesKeywordGroup = new KeywordGroup {
+                    GroupName = moviesKeyword.Id,
+                    Name = moviesKeyword.Word,
+                    Uid = stateMoviesKeywordGroup.Uid
+                };
+                // Add the All Keyword to the KeywordGroup
+                moviesKeywordGroup.Add(allKeyword);
+                // Add the KeywordGroup to the BaseMXF
+                baseMxf.With.KeywordGroups.AddExisting(moviesKeywordGroup);
+            } else {
+                // Create Movies KeywordGroup
+                moviesKeywordGroup = new KeywordGroup {
+                    GroupName = moviesKeyword.Id,
+                    Name = moviesKeyword.Word
+                };
+                // Add the All Keyword to the KeywordGroup
+                moviesKeywordGroup.Add(allKeyword);
+                // Add the KeywordGroup to the BaseMXF
+                baseMxf.With.KeywordGroups.AddNew(moviesKeywordGroup, state.KeywordGroups.GetNextAvailableUid());
+                // Add the KeywordGroup to the State
+                state.KeywordGroups.Add(moviesKeywordGroup);
+            }
+
+            // Initialise TV Shows KeywordGroup Variable
+            KeywordGroup tvShowsKeywordGroup;
+
+            // Find KeywordGroup from State
+            Classes.State.KeywordGroup stateTvShowsKeywordGroup = state.KeywordGroups.KeywordGroup.FirstOrDefault(xx => xx.Name == tvShowsKeyword.Word);
+            // Check if the State KeywordGroup Exists
+            if (stateTvShowsKeywordGroup != null) {
+                // Create TV Shows KeywordGroup
+                tvShowsKeywordGroup = new KeywordGroup {
+                    GroupName = tvShowsKeyword.Id,
+                    Name = tvShowsKeyword.Word,
+                    Uid = stateTvShowsKeywordGroup.Uid
+                };
+                // Add the All Keyword to the KeywordGroup
+                tvShowsKeywordGroup.Add(allKeyword);
+                // Add the KeywordGroup to the BaseMXF
+                baseMxf.With.KeywordGroups.AddExisting(tvShowsKeywordGroup);
+            } else {
+                // Create TV Shows KeywordGroup
+                tvShowsKeywordGroup = new KeywordGroup {
+                    GroupName = tvShowsKeyword.Id,
+                    Name = tvShowsKeyword.Word
+                };
+                // Add the All Keyword to the KeywordGroup
+                tvShowsKeywordGroup.Add(allKeyword);
+                // Add the KeywordGroup to the BaseMXF
+                baseMxf.With.KeywordGroups.AddNew(tvShowsKeywordGroup, state.KeywordGroups.GetNextAvailableUid());
+                // Add the KeywordGroup to the State
+                state.KeywordGroups.Add(tvShowsKeywordGroup);
+            }
 
             #endregion ########################################################
 
@@ -232,24 +320,30 @@ namespace XMLTVImport {
             #region Iterate XMLTV Channels ####################################
 
             // Iterate through XMLTV Channels
-            foreach (XMLTVChannel xmltvChannel in result.Channel.OrderBy(xx => int.Parse(xx.Lcn))) {
+            foreach (XMLTVChannel xmltvChannel in xmltv.Channel.OrderBy(xx => int.Parse(xx.Lcn))) {
 
                 #region Create WMC GuideImages ################################
 
-                string guideImageDir = Path.Combine(workingDir, "WMC-GuideImages");
+                string guideImageDir = Path.Combine(workingDir, "GuideImages");
                 Directory.CreateDirectory(guideImageDir);
 
                 // Find Guide Image from WMC BaseMXF
-                GuideImage guideImage = baseMxf.With.GuideImages.GuideImage.FirstOrDefault(xx => xx.ImageUrl == xmltvChannel.Icon.Src);
-                // Create new Guide Image if None Exists
+                GuideImage guideImage = baseMxf.With.GuideImages.GuideImage.FirstOrDefault(xx => xx.ChannelNo == xmltvChannel.Lcn);
+                // Check if Guide Image Exists
                 if (guideImage == null) {
+                    // Using WebClient
                     using (var client = new WebClient()) {
+                        // Set the WebClient Security Protocol
                         ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                        // Get the URI of the GuideImage Icon
                         string uri = ConfigurationManager.AppSettings.Get($"logo-{xmltvChannel.Lcn}");
+                        // Download the GuideImage Icon to the local working directory
                         client.DownloadFile(uri, Path.Combine(guideImageDir, $"{xmltvChannel.Lcn}.png"));
                     }
+                    // Create new Guide Image if None Exists
                     guideImage = new GuideImage {
-                        ImageUrl = Path.Combine(guideImageDir, $"{xmltvChannel.Lcn}.png")
+                        ImageUrl = $"file://{Path.Combine(guideImageDir, $"{xmltvChannel.Lcn}.png")}",
+                        ChannelNo = xmltvChannel.Lcn
                     };
                     // Add GuideImage to List
                     baseMxf.With.GuideImages.Add(guideImage);
@@ -258,19 +352,39 @@ namespace XMLTVImport {
                 #endregion ####################################################
 
 
-                #region Create WMC Service ################################
+                #region Create WMC Service ####################################
 
                 // Find Service from WMC BaseMXF
                 Service service = baseMxf.With.Services.Service.FirstOrDefault(xx => xx.Name == xmltvChannel.Displayname);
                 // Create new Service if None Exists
                 if (service == null) {
-                    service = new Service {
-                        Name = xmltvChannel.Displayname,
-                        LogoImage = guideImage.Id,
-                        CallSign = ConfigurationManager.AppSettings.Get($"callsign-{xmltvChannel.Lcn}")
-                    };
-                    // Add Service to List
-                    baseMxf.With.Services.Add(service);
+
+                    // Get the Service CallSign
+                    string serviceCallSign = ConfigurationManager.AppSettings.Get($"callsign-{xmltvChannel.Lcn}");
+
+                    // Find Service from State
+                    Classes.State.Service stateService = state.Services.Service.FirstOrDefault(xx => xx.Name == xmltvChannel.Displayname && xx.CallSign == serviceCallSign);
+                    // Check if the State Service Exists
+                    if (stateService != null) {
+                        service = new Service {
+                            Name = xmltvChannel.Displayname,
+                            LogoImage = guideImage.Id,
+                            CallSign = serviceCallSign,
+                            Uid = stateService.Uid
+                        };
+                        // Add Service to List
+                        baseMxf.With.Services.AddExisting(service);
+                    } else {
+                        service = new Service {
+                            Name = xmltvChannel.Displayname,
+                            LogoImage = guideImage.Id,
+                            CallSign = ConfigurationManager.AppSettings.Get($"callsign-{xmltvChannel.Lcn}")
+                        };
+                        // Add Service to List
+                        baseMxf.With.Services.AddNew(service, state.Services.GetNextAvailableUid());
+                        // Add the Service to the State
+                        state.Services.Add(service);
+                    }
                 }
 
                 #endregion ####################################################
@@ -302,6 +416,7 @@ namespace XMLTVImport {
                     channel = new Channel {
                         Number = int.Parse(xmltvChannel.Lcn),
                         Service = service.Id,
+                        ServiceUid = service.Uid,
                         Id = xmltvChannel.Id,
                         Lineup = lineup.Id,
                         MatchName = ConfigurationManager.AppSettings.Get($"callsign-{xmltvChannel.Lcn}")
@@ -320,7 +435,7 @@ namespace XMLTVImport {
             #region Iterate XMLTV Programmes ##################################
 
             // Iterate through XMLTV Programmes
-            foreach (Programme programme in result.Programme.OrderBy(xx => int.Parse(result.Channel.First(xy => xy.Id == xx.Channel).Lcn)).ThenBy(xx => DateTime.ParseExact(xx.Start, "yyyyMMddHHmmss zzz", new CultureInfo("en-AU")))) {
+            foreach (Programme programme in xmltv.Programme.OrderBy(xx => int.Parse(xmltv.Channel.First(xy => xy.Id == xx.Channel).Lcn)).ThenBy(xx => DateTime.ParseExact(xx.Start, "yyyyMMddHHmmss zzz", new CultureInfo("en-AU")))) {
 
                 #region Get Programme Details #################################
 
@@ -521,48 +636,90 @@ namespace XMLTVImport {
 
 
                 #region Create WMC SeriesInfo #################################
-
-                // Find SeriesInfo from WMC BaseMXF
-                SeriesInfo seriesInfo = baseMxf.With.SeriesInfos.SeriesInfo.FirstOrDefault(xx => xx.Title == programme.Title);
+               
                 // If the Programme is a TV Show
                 if (isSeries) {
+
+                    // Find SeriesInfo from WMC BaseMXF
+                    SeriesInfo seriesInfo = baseMxf.With.SeriesInfos.SeriesInfo.FirstOrDefault(xx => xx.Title == programme.Title);
                     // Create new SeriesInfo if None Exists
                     if (seriesInfo == null) {
-                        // Create SeriesInfo
-                        seriesInfo = new SeriesInfo {
-                            Title = programme.Title,
-                            ShortTitle = programme.Title
-                        };
-                        // Add SeriesInfo to List
-                        baseMxf.With.SeriesInfos.Add(seriesInfo);
+
+                        // Find SeriesInfo from State
+                        Classes.State.SeriesInfo stateSeriesInfo = state.SeriesInfos.SeriesInfo.FirstOrDefault(xx => xx.Name == programme.Title && xx.ShortName == programme.Title);
+                        // Check if the State SeriesInfo Exists
+                        if (stateSeriesInfo != null) {
+                            // Create SeriesInfo
+                            seriesInfo = new SeriesInfo {
+                                Title = programme.Title,
+                                ShortTitle = programme.Title,
+                                Uid = stateSeriesInfo.Uid
+                            };
+                            // Add SeriesInfo to List
+                            baseMxf.With.SeriesInfos.AddExisting(seriesInfo);
+                        } else {
+                            // Create SeriesInfo
+                            seriesInfo = new SeriesInfo {
+                                Title = programme.Title,
+                                ShortTitle = programme.Title
+                            };
+                            // Add SeriesInfo to List
+                            baseMxf.With.SeriesInfos.AddNew(seriesInfo, state.SeriesInfos.GetNextAvailableUid());
+                            // Add the SeriesInfo to the State
+                            state.SeriesInfos.AddNew(seriesInfo);
+                        }
                     }
                 }
-
-                
 
                 #endregion ####################################################
 
 
                 #region Create WMC Season #####################################
-
+                
                 // If the Programme is a TV Show
                 if (isSeries) {
+
+                    // Find SeriesInfo from WMC BaseMXF
+                    SeriesInfo seriesInfo = baseMxf.With.SeriesInfos.SeriesInfo.FirstOrDefault(xx => xx.Title == programme.Title);
                     // Find Season from WMC BaseMXF
                     Season season = baseMxf.With.Seasons.Season.FirstOrDefault(xx => xx.Series == seriesInfo.Id);
                     // Create new Season if None Exists
                     if (season == null) {
-                        // Create Season
-                        season = new Season {
-                            Series = seriesInfo.Id,
-                            Title = $"{programme.Title}",
-                            Year = year
-                        };
+
+                        // Get the Season Title
+                        string seasonTitle = programme.Title;
                         // Check if this is not a Yearly Programme
                         if (!isYearly) {
-                            season.Title = $"{programme.Title}: Season {seasonNo}";
+                            seasonTitle = $"{programme.Title}: Season {seasonNo}";
                         }
-                        // Add Season to List
-                        baseMxf.With.Seasons.Add(season);
+
+                        // Find Season from State
+                        Classes.State.Season stateSeason = state.Seasons.Season.FirstOrDefault(xx => xx.Series == seriesInfo.Uid && xx.Title == seasonTitle && xx.Year == year);
+                        // Check if the State Season Exists
+                        if (stateSeason != null) {
+                            // Create Season
+                            season = new Season {
+                                Series = seriesInfo.Id,
+                                SeriesUid = seriesInfo.Uid,
+                                Title = seasonTitle,
+                                Year = year,
+                                Uid = stateSeason.Uid
+                            };
+                            // Add Season to List
+                            baseMxf.With.Seasons.AddExisting(season);
+                        } else {
+                            // Create Season
+                            season = new Season {
+                                Series = seriesInfo.Id,
+                                SeriesUid = seriesInfo.Uid,
+                                Title = seasonTitle,
+                                Year = year
+                            };
+                            // Add Season to List
+                            baseMxf.With.Seasons.AddNew(season, state.Seasons.GetNextAvailableUid());
+                            // Add the Season to the State
+                            state.Seasons.Add(season);
+                        }
                     }
                 }
 
@@ -572,50 +729,112 @@ namespace XMLTVImport {
                 #region Create WMC Program ####################################
 
                 // Find Program from WMC BaseMXF
-                Program program = baseMxf.With.Programs.Program.FirstOrDefault(xx => 
-                xx.Title == programme.Title && 
-                xx.EpisodeTitle == programme.Subtitle && 
-                xx.Description == programme.Desc &&
-                xx.SeasonNumber == seasonNo &&
-                xx.EpisodeNumber == episodeNo
-                );
+                Program program = baseMxf.With.Programs.Program.FirstOrDefault(xx => xx.Title == programme.Title && xx.EpisodeTitle == programme.Subtitle && xx.Description == programme.Desc && xx.SeasonNumber == seasonNo && xx.EpisodeNumber == episodeNo);
                 // Create new Program if None Exists
                 if (program == null) {
-                    // Create Program
-                    program = new Program {
-                        Title = programme.Title,
-                        Description = programme.Desc,
-                        ShortDescription = programme.Desc,
-                        EpisodeTitle = programme.Subtitle,
-                        IsMovie = isMovie,
-                        IsSeries = isSeries,
-                        IsShort = isShort,
-                        IsMiniseries = isMiniseries,
-                        IsNews = isNews,
-                        IsKids = isKids,
-                        IsReality = isReality,
-                        IsSpecial = isSpecial,
-                        IsSports = isSports,
-                        Keywords = string.Join(",", keywords.Select(xx => xx.Id)), 
-                        Year = year,
-                        SeasonNumber = seasonNo,
-                        EpisodeNumber = episodeNo
-                    };
+                    
+                    // Initialise Programme variables
+                    Classes.State.Program stateProgram;
+                    string programmeSeriesId = null;
+                    string programmeSeriesUid = null;
+                    string programmeSeasonId = null;
+                    string programmeSeasonUid = null;
+                    string programmeOriginalAirdate = null;
+                    string programmeGuideImage = null;
 
                     // If the Programme is a TV Show
                     if (isSeries) {
-                        program.Series = seriesInfo.Id;
+                        // Find SeriesInfo from WMC BaseMXF
+                        SeriesInfo seriesInfo = baseMxf.With.SeriesInfos.SeriesInfo.FirstOrDefault(xx => xx.Title == programme.Title);
+                        // Find Season from WMC BaseMXF
+                        Season season = baseMxf.With.Seasons.Season.FirstOrDefault(xx => xx.Series == seriesInfo.Id);
+                        // Set Programme Series
+                        programmeSeriesId = seriesInfo.Id;
+                        programmeSeriesUid = seriesInfo.Uid;
+                        // Set Programme Season
+                        programmeSeasonId = season.Id;
+                        programmeSeasonUid = season.Uid;
+                        // Find Program from State
+                        stateProgram = state.Programs.Program.FirstOrDefault(xx => xx.Series == seriesInfo.Uid && xx.Season == season.Uid && xx.Title == programme.Title && xx.Year == year && xx.SeasonNo == seasonNo && xx.EpisodeNo == episodeNo);
+                    } 
+                    // If the Programme is a Movie
+                    else {
+                        stateProgram = state.Programs.Program.FirstOrDefault(xx => xx.Title == programme.Title && xx.Year == year && xx.SeasonNo == seasonNo && xx.EpisodeNo == episodeNo);
                     }
+
                     // If the Programme is a Repeat
                     if (isRepeat) {
-                        program.OriginalAirdate = originalAirDate.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss");
+                        programmeOriginalAirdate = originalAirDate.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss");
                     }
                     // If the Program has a Guide Image
                     if (hasImage) {
-                        program.GuideImage = guideImage.Id;
+                        programmeGuideImage = guideImage.Id;
                     }
-                    // Add Program to List
-                    baseMxf.With.Programs.Add(program);
+
+                   
+                    // Check if the State Program Exists
+                    if (stateProgram != null) {
+                        // Create Program
+                        program = new Program {
+                            Title = programme.Title,
+                            Description = programme.Desc,
+                            ShortDescription = programme.Desc,
+                            EpisodeTitle = programme.Subtitle,
+                            IsMovie = isMovie,
+                            IsSeries = isSeries,
+                            IsShort = isShort,
+                            IsMiniseries = isMiniseries,
+                            IsNews = isNews,
+                            IsKids = isKids,
+                            IsReality = isReality,
+                            IsSpecial = isSpecial,
+                            IsSports = isSports,
+                            Keywords = string.Join(",", keywords.Select(xx => xx.Id)),
+                            Year = year,
+                            SeasonNumber = seasonNo,
+                            EpisodeNumber = episodeNo,
+                            Series = programmeSeriesId,
+                            SeriesUid = programmeSeriesUid,
+                            Season = programmeSeasonId,
+                            SeasonUid = programmeSeasonUid,
+                            OriginalAirdate = programmeOriginalAirdate,
+                            GuideImage = programmeGuideImage,
+                            Uid = stateProgram.Uid
+                        };
+                        // Add Program to List
+                        baseMxf.With.Programs.AddExisting(program);
+                    } else {
+                        // Create Program
+                        program = new Program {
+                            Title = programme.Title,
+                            Description = programme.Desc,
+                            ShortDescription = programme.Desc,
+                            EpisodeTitle = programme.Subtitle,
+                            IsMovie = isMovie,
+                            IsSeries = isSeries,
+                            IsShort = isShort,
+                            IsMiniseries = isMiniseries,
+                            IsNews = isNews,
+                            IsKids = isKids,
+                            IsReality = isReality,
+                            IsSpecial = isSpecial,
+                            IsSports = isSports,
+                            Keywords = string.Join(",", keywords.Select(xx => xx.Id)),
+                            Year = year,
+                            SeasonNumber = seasonNo,
+                            EpisodeNumber = episodeNo,
+                            Series = programmeSeriesId,
+                            SeriesUid = programmeSeriesUid,
+                            Season = programmeSeasonId,
+                            SeasonUid = programmeSeasonUid,
+                            OriginalAirdate = programmeOriginalAirdate,
+                            GuideImage = programmeGuideImage,
+                        };
+                        // Add Program to List
+                        baseMxf.With.Programs.AddNew(program, state.Programs.GetNextAvailableUid());
+                        // Add the Program to the State
+                        state.Programs.Add(program);
+                    }
                 }
 
                 #endregion ####################################################
@@ -631,6 +850,7 @@ namespace XMLTVImport {
                 ScheduleEntry scheduleEntry = scheduleEntries.ScheduleEntry.FirstOrDefault(xx => xx.StartDateTime == startTime);
                 // Check if ScheduleEntry already exists
                 if (scheduleEntry == null) {
+
                     // Create ScheduleEntry
                     scheduleEntry = new ScheduleEntry {
                         Program = program.Id,
@@ -650,6 +870,7 @@ namespace XMLTVImport {
                         StartDateTime = startTime,
                         EndDateTime = endTime
                     };
+
                     // If this is the First ScheduleEntry
                     if (scheduleEntries.ScheduleEntry.Count == 0) {
                         // Add the StartTime
@@ -683,7 +904,7 @@ namespace XMLTVImport {
                                         Year = DateTime.Now.Year.ToString()
                                     };
                                     // Add new Filler Program to List
-                                    baseMxf.With.Programs.Add(fillerProgram);
+                                    baseMxf.With.Programs.AddNew(fillerProgram, state.Programs.GetNextAvailableUid());
                                 }
                                 // Create new Filler ScheduleEntry
                                 ScheduleEntry fillerEntry = new ScheduleEntry() {
@@ -711,13 +932,13 @@ namespace XMLTVImport {
             //// Iterate through all created ScheduleEntries
             //foreach (ScheduleEntries scheduleEntries in baseMxf.With.ScheduleEntries) {
             //    // If this ScheduleEntries Object has no ScheduleEntry Objects
-            //    if (scheduleEntries.ScheduleEntry.Count() == 0) {  
+            //    if (scheduleEntries.ScheduleEntry.Count() == 0) {
             //        // Get Service
             //        Service service = baseMxf.With.Services.Service.FirstOrDefault(xx => xx.Id == scheduleEntries.Service);
             //        // Create new Filler Program
             //        Program program = new Program {
             //            Title = service.Name,
-            //            Description = "No EPG Data Available.",
+            //            Description = "No Data Available.",
             //            ShortDescription = "No EPG Data Available.",
             //            GuideImage = service.LogoImage,
             //            Year = DateTime.Now.Year.ToString()
@@ -726,9 +947,9 @@ namespace XMLTVImport {
             //        baseMxf.With.Programs.Add(program);
             //        // Create new Filler ScheduleEntry
             //        ScheduleEntry scheduleEntry = new ScheduleEntry() {
-            //           Program = program.Id,
-            //           StartTime = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss"),
-            //           Duration = 86400
+            //            Program = program.Id,
+            //            StartTime = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss"),
+            //            Duration = 86400
             //        };
             //        // Add new Filler ScheduleEntry to List
             //        scheduleEntries.Add(scheduleEntry);
@@ -738,21 +959,38 @@ namespace XMLTVImport {
             #endregion ########################################################
 
 
+            #region Sort Data #################################################
+
+            // Sort Keywords
+            baseMxf.With.Keywords.Keyword = baseMxf.With.Keywords.Keyword.OrderBy(xx => int.Parse(xx.Id.Replace("k",""))).ToList();
+
+            #endregion ########################################################
+
+
             #region Create WMC MXF XML  #######################################
 
             // Create XML Serializer
-            XmlSerializer writer = new XmlSerializer(typeof(MXF));
+            serializer = new XmlSerializer(typeof(MXF));
             // Add NameSpaces to XML
             XmlSerializerNamespaces xmlSerializerNamespaces = new XmlSerializerNamespaces();
             xmlSerializerNamespaces.Add("sql", "urn:schemas-microsoft-com:XML-sql");
             xmlSerializerNamespaces.Add("xsi", "http://www.w3.org/2001/XMLSchema-instance");
-
-            // Set the XML Output Path
-            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "latest-guide.xml");
-
             // Write the data to XML
-            using (FileStream file = File.Create(path)) {
-                writer.Serialize(file, baseMxf, xmlSerializerNamespaces);
+            using (FileStream file = File.Create(mxfPath)) {
+                serializer.Serialize(file, baseMxf, xmlSerializerNamespaces);
+                file.Close();
+            }
+
+            #endregion ########################################################
+
+
+            #region Create State XML  #########################################
+
+            // Create XML Serializer
+            serializer = new XmlSerializer(typeof(Classes.State.State));
+            // Write the data to XML
+            using (FileStream file = File.Create(statePath)) {
+                serializer.Serialize(file, state);
                 file.Close();
             }
 
@@ -762,7 +1000,7 @@ namespace XMLTVImport {
             #region Import WMC MXF  ###########################################
 
             // Import the MXF Guide into WMC
-            Process.Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "ehome", "loadmxf.exe"), $"-i \"{path}\"");
+            Process.Start(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "ehome", "loadmxf.exe"), $"-i \"{mxfPath}\"");
 
             //// Retrieve the XML data
             //FileStream mxf = File.OpenRead(path);

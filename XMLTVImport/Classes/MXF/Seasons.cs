@@ -14,6 +14,8 @@ namespace XMLTVImport.Classes.MXF {
 		public string Uid { get; set; }
 		[XmlAttribute(AttributeName = "series")]
 		public string Series { get; set; }
+		[XmlIgnore]
+		public string SeriesUid { get; set; }
 		[XmlAttribute(AttributeName = "title")]
 		public string Title { get; set; }
 		[XmlAttribute(AttributeName = "year")]
@@ -29,11 +31,20 @@ namespace XMLTVImport.Classes.MXF {
 			Season = new List<Season>();
 		}
 
-		public void Add(Season season) {
+		public void AddNew(Season season, int uid) {
+			// Set Season UID
+			season.Uid = $"!Season!{uid}";
 			// Set Season Current Count
 			int currentCount = Season.Count + 1;
-			// Set Season UID
-			season.Uid = $"!Season!{currentCount}";
+			// Set Season ID
+			season.Id = $"sn{currentCount}";
+			// Add Season to List
+			Season.Add(season);
+		}
+
+		public void AddExisting(Season season) {
+			// Set Season Current Count
+			int currentCount = Season.Count + 1;
 			// Set Season ID
 			season.Id = $"sn{currentCount}";
 			// Add Season to List

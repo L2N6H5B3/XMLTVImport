@@ -12,20 +12,27 @@ namespace XMLTVImport.Classes.MXF {
 		public string Uid { get; set; }
 		[XmlAttribute(AttributeName = "groupName")]
 		public string GroupName { get; set; }
+		[XmlIgnore]
+		public string Name { get; set; }
 		[XmlAttribute(AttributeName = "keywords")]
 		public string Keywords = "";
+		[XmlIgnore]
+		public List<Keyword> KeywordList = new List<Keyword>();
 		[XmlIgnore]
 		public int counter = 0;
 
 		public void Add(Keyword keyword) {
 			if (Keywords.Length == 0) {
-				// Add KeywordGroup to List
+				// Add KeywordGroup to String
 				Keywords += keyword.Id;
 			} else {
-				// Add KeywordGroup to List
+				// Add KeywordGroup to String
 				Keywords += $",{keyword.Id}";
 			}
+			// Increment Counter
 			counter++;
+			// Add Keyword to List
+			KeywordList.Add(keyword);
 		}
 	}
 
@@ -40,11 +47,22 @@ namespace XMLTVImport.Classes.MXF {
 			KeywordGroup = new List<KeywordGroup>();
 		}
 
-		public void Add(KeywordGroup keywordGroup) {
+		public void AddNew(KeywordGroup keywordGroup, int uid) {
+			// Set KeywordGroup UID
+			keywordGroup.Uid = $"!KeywordGroup!k{uid}";
 			// Set KeywordGroup Current Count
 			counter++;
-			// Set KeywordGroup UID
-			keywordGroup.Uid = $"!KeywordGroup!k{counter}";
+			// Set KeywordGroup Name
+			keywordGroup.GroupName = $"k{counter}";
+			// Set KeywordGroup Counter
+			keywordGroup.counter = counter * 100;
+			// Add KeywordGroup to List
+			KeywordGroup.Add(keywordGroup);
+		}
+
+		public void AddExisting(KeywordGroup keywordGroup) {
+			// Set KeywordGroup Current Count
+			counter++;
 			// Set KeywordGroup Name
 			keywordGroup.GroupName = $"k{counter}";
 			// Set KeywordGroup Counter
